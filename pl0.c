@@ -5,14 +5,8 @@
 #include <ctype.h>
 #include "pl0.h"
 
-
 void error(long n)
 {
-    if (sym == commentsym)
-    {
-        return;
-    }
-
     long i;
 
     printf("Error=>");
@@ -108,14 +102,14 @@ void getsym()
         }
 
         // 将读取到的词法单元a拷贝到id中，因此现在id是词法单元
-        strcpy(id, a); 
-        
-        //使用二分查找检查id是否为保留字
+        strcpy(id, a);
+
+        // 使用二分查找检查id是否为保留字
         i = 0; 
         j = norw - 1;
         do
         {
-            k = (i+j)/2;
+            k = i +(j-i)/2;
 
             if(strcmp(id, word[k]) <= 0)
             {
@@ -136,6 +130,7 @@ void getsym()
         else
         {
             sym = ident;
+            printf("(ID:%s)\n",id);
         }
     }
     // 词法单元以数字字符开头：词法单元是一个数字常量
@@ -199,29 +194,6 @@ void getsym()
         else
         {
             sym=gtr;
-        }
-    }
-    else if((sym!=number)&&(ch == '/'))//@修改02：添加注释过滤
-    {
-        getch();
-        if(ch == '*')
-        {
-            printf("Comments Found!\n");
-
-            while(1)
-            {
-                getch();
-                if(ch == '*')
-                {
-                    getch();
-                    if(ch == '/')
-                    {
-                        getch();
-                        sym = commentsym;
-                        break;
-                    }
-                }
-            }
         }
     }
     // 若不是以上任何一种词法单元，则该词法单元是一个运算符，直接编码即可
@@ -663,13 +635,32 @@ void statement(unsigned long fsys)
         {
             error(16);
         }
+
         cx1=cx;	
         // 生成最终的条件跳转汇编指令（目前还在占位，因为尚未清楚then的后续代码长度）
         gen(jpc,0,0);
         // 处理then的后续代码
-        statement(fsys);
+        statement(fsys | elsesym);
+
+        if(sym == elsesym)
+        {
+            printf("Else1\n");
+            getsym();
+            cx2=cx;
+            code[cx1].a = cx + 1;
+            gen(jmp,0,0);
+            printf("Else2\n");
+            statement(fsys);
+            printf("Else3\n");
+            code[cx2].a=cx;
+        }
+        else
+        {
+            code[cx1].a = cx;
+        }
+
         // 处理完毕后，将占位的jpc的跳转地址补充
-        code[cx1].a=cx;	
+        //code[cx1].a=cx;	
     }
     // 处理Stmt第三种推导，其结构为： begin Stmt {; Stmt} end
     else if(sym==beginsym)
@@ -855,7 +846,7 @@ void block(unsigned long fsys)
     code[table[tx0].addr].a=cx;
     // 给过程词法单元的地址属性附上地址（注意，初始的大Block没有名字，只有开始语句的地址）
     table[tx0].addr=cx;		// start addr of code 
-    cx0=cx; //@01：删除
+    cx0=cx; 
     gen(Int,0,dx);// 根据当前的变量dx开辟栈区
     // 处理必然存在的Stmt
     statement(fsys|semicolon|endsym);
@@ -997,35 +988,61 @@ int main()
     }
     
     //初始化保留字的字符串
-    strcpy(word[0],  "begin     ");
-    strcpy(word[1],  "call      ");
-    strcpy(word[2],  "const     ");
-    strcpy(word[3],  "do        ");
-    strcpy(word[4],  "end       ");
-    strcpy(word[5],  "if        ");
-    strcpy(word[6],  "odd       ");
-    strcpy(word[7],  "procedure ");
-    strcpy(word[8],  "then      ");
-    strcpy(word[9],  "var       ");
-    strcpy(word[10], "while     ");
-    strcpy(word[11], "else      ");
-        // 初始化保留字编码数组
-        // 实际上，word和wsym的索引相一致，这个索引间接实现了从保留字字符串到保留字编码的映射
-    wsym[0] = beginsym;
-    wsym[1]=callsym;
-    wsym[2]=constsym;
-    wsym[3]=dosym;
-    wsym[4]=endsym;
-    wsym[5]=ifsym;
-    wsym[6]=oddsym;
-    wsym[7]=procsym;
-    wsym[8]=thensym;
-    wsym[9]=varsym;
-    wsym[10]=whilesym;
-    wsym[11]=elsesym;
+    // strcpy(word[0],  "begin     ");
+    // strcpy(word[1],  "call      ");
+    // strcpy(word[2],  "const     ");
+    // strcpy(word[3],  "do        ");
+    // strcpy(word[4],  "end       ");
+    // strcpy(word[5],  "if        ");
+    // strcpy(word[6],  "odd       ");
+    // strcpy(word[7],  "procedure ");
+    // strcpy(word[8],  "then      ");
+    // strcpy(word[9],  "var       ");
+    // strcpy(word[10], "while     ");
+    // strcpy(word[11], "else      ");
+    strcpy(word[0], "begin     ");  // 0
+    strcpy(word[1], "call      ");  // 1
+    strcpy(word[2], "const     ");  // 2
+    strcpy(word[3], "do        ");  // 3
+    strcpy(word[4], "else      ");  // 4
+    strcpy(word[5], "end       ");  // 5
+    strcpy(word[6], "if        ");  // 6
+    strcpy(word[7], "odd       ");  // 7
+    strcpy(word[8], "procedure ");  // 8
+    strcpy(word[9], "then      ");  // 9
+    strcpy(word[10], "var       "); // 10
+    strcpy(word[11], "while     "); // 11
 
-        // 初始化运算符编码数组，并且实际上建立了从运算符字符到运算符编码的映射
-        ssym['+'] = plus;
+    // 初始化保留字编码数组
+    // 实际上，word和wsym的索引相一致，这个索引间接实现了从保留字字符串到保留字编码的映射
+    // wsym[0]=beginsym;
+    // wsym[1]=callsym;
+    // wsym[2]=constsym;
+    // wsym[3]=dosym;
+    // wsym[4]=endsym;
+    // wsym[5]=ifsym;
+    // wsym[6]=oddsym;
+    // wsym[7]=procsym;
+    // wsym[8]=thensym;
+    // wsym[9]=varsym;
+    // wsym[10]=whilesym;
+    // wsym[11]=elsesym;
+
+    wsym[0] = beginsym;
+    wsym[1] = callsym;
+    wsym[2] = constsym;
+    wsym[3] = dosym;
+    wsym[4] = elsesym;
+    wsym[5] = endsym;
+    wsym[6] = ifsym;
+    wsym[7] = oddsym;
+    wsym[8] = procsym;
+    wsym[9] = thensym;
+    wsym[10] = varsym;
+    wsym[11] = whilesym;
+
+    //初始化运算符编码数组，并且实际上建立了从运算符字符到运算符编码的映射
+    ssym['+']=plus;
     ssym['-']=minus;
     ssym['*']=times;
     ssym['/']=slash;
@@ -1048,7 +1065,7 @@ int main()
 
     // 实现了声明部分、语句部分、因子部分编码，这个编码似乎是开始符号集的编码相或的结果？
     declbegsys=constsym|varsym|procsym;
-    statbegsys=beginsym|callsym|ifsym|whilesym;
+    statbegsys = beginsym | callsym | ifsym | whilesym;
     facbegsys=ident|number|lparen;
 
     // 编译过程正式开始，这里输入需要编译的pl0文件
