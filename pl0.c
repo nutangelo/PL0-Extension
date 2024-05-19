@@ -130,7 +130,7 @@ void getsym()
         else
         {
             sym = ident;
-            printf("(ID:%s)\n",id);
+            //printf("(ID:%s)\n",id);
         }
     }
     // 词法单元以数字字符开头：词法单元是一个数字常量
@@ -640,18 +640,15 @@ void statement(unsigned long fsys)
         // 生成最终的条件跳转汇编指令（目前还在占位，因为尚未清楚then的后续代码长度）
         gen(jpc,0,0);
         // 处理then的后续代码
-        statement(fsys | elsesym);
+        statement(fsys | elsesym);//@2
 
-        if(sym == elsesym)
+        if (sym == elsesym) //@2
         {
-            printf("Else1\n");
             getsym();
             cx2=cx;
             code[cx1].a = cx + 1;
             gen(jmp,0,0);
-            printf("Else2\n");
             statement(fsys);
-            printf("Else3\n");
             code[cx2].a=cx;
         }
         else
@@ -695,7 +692,8 @@ void statement(unsigned long fsys)
     // 处理Stmt第五种推导，其结构为： while Cond do Stmt
     else if(sym==whilesym)
     {
-        cx1=cx;
+        whilelev = whilelev+1;//@3
+        cx1 = cx;
         getsym(); // 理应读入一个Cond
         // 处理Cond
         condition(fsys | dosym); 
@@ -713,19 +711,41 @@ void statement(unsigned long fsys)
         }
 
         // 处理Stmt
-        statement(fsys); 
+        statement(fsys|exitsym); 
         
         // 生成跳转回while判断的汇编指令
         gen(jmp,0,cx1);
         // 填充while判断的占位符
         code[cx2].a=cx;
+        
+        //@3 填充已经生成的exit跳转指令
+        for (int i = 0; i < exit_num[whilelev];i++)
+        {
+            code[exit_pos[whilelev][i]].a=cx;
+        }
+        exit_num[whilelev]=0;
+        whilelev = whilelev - 1; 
+    }
+    //@3 添加exit判断
+    else if(sym==exitsym)
+    {
+        //printf("exit sym found!\n");
+        if(fsys|whilesym)
+        {
+            //printf("Here is in a While!\n");
+
+            exit_num[whilelev] = exit_num[whilelev] + 1;
+            exit_pos[whilelev][exit_num[whilelev]-1]=cx;
+            gen(jmp,0,0);
+        }
+        getsym();
     }
 
     test(fsys,0,19);
 }
 
 // 处理block，其结构为：Block->[ConstDecl] [VarDecl][ProcDecl] Stmt
-void block(unsigned long fsys)
+void block(unsigned long fsys)  
 {
 
     long tx0; // 初始表索引
@@ -988,58 +1008,35 @@ int main()
     }
     
     //初始化保留字的字符串
-    // strcpy(word[0],  "begin     ");
-    // strcpy(word[1],  "call      ");
-    // strcpy(word[2],  "const     ");
-    // strcpy(word[3],  "do        ");
-    // strcpy(word[4],  "end       ");
-    // strcpy(word[5],  "if        ");
-    // strcpy(word[6],  "odd       ");
-    // strcpy(word[7],  "procedure ");
-    // strcpy(word[8],  "then      ");
-    // strcpy(word[9],  "var       ");
-    // strcpy(word[10], "while     ");
-    // strcpy(word[11], "else      ");
     strcpy(word[0], "begin     ");  // 0
     strcpy(word[1], "call      ");  // 1
     strcpy(word[2], "const     ");  // 2
     strcpy(word[3], "do        ");  // 3
     strcpy(word[4], "else      ");  // 4
     strcpy(word[5], "end       ");  // 5
-    strcpy(word[6], "if        ");  // 6
-    strcpy(word[7], "odd       ");  // 7
-    strcpy(word[8], "procedure ");  // 8
-    strcpy(word[9], "then      ");  // 9
-    strcpy(word[10], "var       "); // 10
-    strcpy(word[11], "while     "); // 11
+    strcpy(word[6], "exit      ");  // 6
+    strcpy(word[7], "if        ");  // 7
+    strcpy(word[8], "odd       ");  // 8
+    strcpy(word[9], "procedure ");  // 9
+    strcpy(word[10], "then      "); // 10
+    strcpy(word[11], "var       "); // 11
+    strcpy(word[12], "while     "); // 12
 
     // 初始化保留字编码数组
     // 实际上，word和wsym的索引相一致，这个索引间接实现了从保留字字符串到保留字编码的映射
-    // wsym[0]=beginsym;
-    // wsym[1]=callsym;
-    // wsym[2]=constsym;
-    // wsym[3]=dosym;
-    // wsym[4]=endsym;
-    // wsym[5]=ifsym;
-    // wsym[6]=oddsym;
-    // wsym[7]=procsym;
-    // wsym[8]=thensym;
-    // wsym[9]=varsym;
-    // wsym[10]=whilesym;
-    // wsym[11]=elsesym;
-
-    wsym[0] = beginsym;
-    wsym[1] = callsym;
-    wsym[2] = constsym;
-    wsym[3] = dosym;
-    wsym[4] = elsesym;
-    wsym[5] = endsym;
-    wsym[6] = ifsym;
-    wsym[7] = oddsym;
-    wsym[8] = procsym;
-    wsym[9] = thensym;
-    wsym[10] = varsym;
-    wsym[11] = whilesym;
+    wsym[0] = beginsym;  // b
+    wsym[1] = callsym;   // c
+    wsym[2] = constsym;  // c
+    wsym[3] = dosym;     // d
+    wsym[4] = elsesym;   // e
+    wsym[5] = endsym;    // e
+    wsym[6] = exitsym;   // e
+    wsym[7] = ifsym;     // i
+    wsym[8] = oddsym;    // o
+    wsym[9] = procsym;   // p
+    wsym[10] = thensym;  // t
+    wsym[11] = varsym;   // v
+    wsym[12] = whilesym; // w
 
     //初始化运算符编码数组，并且实际上建立了从运算符字符到运算符编码的映射
     ssym['+']=plus;
@@ -1062,6 +1059,14 @@ int main()
     strcpy(mnemonic[Int],"INT");
     strcpy(mnemonic[jmp],"JMP");
     strcpy(mnemonic[jpc],"JPC");
+
+    // @3 初始化while_nest
+    whilelev=-1;
+    for (int i = 0; i < whilevmax; i++)
+    {
+        exit_num[i] = 0;
+        //printf("exit_num: %d\n", exit_num[i]);
+    }
 
     // 实现了声明部分、语句部分、因子部分编码，这个编码似乎是开始符号集的编码相或的结果？
     declbegsys=constsym|varsym|procsym;

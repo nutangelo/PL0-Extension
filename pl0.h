@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#define norw 12    // 保留字的数量
+#define norw 13    // 保留字的数量
 #define txmax 100  // 标识符表的长度
 #define nmax 14    // 数字中的最大位数
 #define al 10      // 标识符的最大长度
@@ -43,7 +43,13 @@
 #define constsym 0x8000000 // const保留字
 #define varsym 0x10000000  // var保留字
 #define procsym 0x20000000 // procedure保留字
-#define elsesym 0x40000000 // procedure保留字
+#define elsesym 0x40000000 // else保留字
+#define exitsym 0x101      // exit保留字
+
+// 以下的保留字尚未投入使用
+#define arraysym 0x102     // array保留字
+#define readsym 0x103      // read保留字
+#define writesym 0x104     // read保留字
 
 // 将对象分成常量、变量、过程
 enum object
@@ -156,3 +162,9 @@ long tx;  // 当前符号表索引，用于表示当前标识符在符号表的�
 
 #define stacksize 50000
 long s[stacksize]; // 数据存储区，用于解释器执行时的数据操作
+
+// @3
+#define whilevmax 3
+int whilelev;
+int exit_num[whilevmax];
+long exit_pos[whilevmax][3] = {0};
