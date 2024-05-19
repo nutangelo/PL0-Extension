@@ -1,0 +1,10 @@
+const a=10,b=20;
+var c;
+procedure p;
+    begin
+		if a<b then c:=a 
+		else c:=b
+    end;
+begin
+    call p;
+end.
