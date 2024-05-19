@@ -110,6 +110,7 @@ void getsym()
         do
         {
             k = i +(j-i)/2;
+            //k = (i + j) / 2;
 
             if(strcmp(id, word[k]) <= 0)
             {
@@ -225,10 +226,10 @@ void test(unsigned long s1, unsigned long s2, long n)
         error(n);
         s1 = s1 | s2;
         
-        while(!(sym & s1))
-        {
-            getsym();
-        }
+        // while(!(sym & s1))
+        // {
+        //     getsym();
+        // }
     }
 }
 
@@ -261,6 +262,10 @@ void enter(enum object k)
             break;
 
         case proc:
+            table[tx].level = lev;
+            break;
+
+        case func:
             table[tx].level = lev;
             break;
     }
@@ -557,6 +562,8 @@ void statement(unsigned long fsys)
 {
     long i,cx1,cx2;
 
+    //printf("statement!\n");
+
     // 处理Stmt的第一种推导：ident := Exp
     if(sym==ident)
     {
@@ -605,17 +612,66 @@ void statement(unsigned long fsys)
             if(i==0)
             {
                 error(11);
+                getsym();
             }
             else if(table[i].kind==proc)
             {
                 gen(cal,lev-table[i].level,table[i].addr);
+                getsym();
+            }
+            else if(table[i].kind==func)
+            {
+                getsym();//读取左括号
+                getsym();//读取参数列表或者右括号
+                if (sym==rparen)
+                {
+                    gen(cal, lev - table[i].level, table[i].addr);
+                    getsym();
+                }
+                else if(sym==ident)
+                {
+                    int idtx=position(id);
+                    gen(lod, 0, table[idtx].addr);
+
+                    getsym();
+                    while(sym==comma)
+                    {
+                        getsym();
+                        idtx = position(id);
+                        gen(lod, 0, table[idtx].addr);
+                        getsym();
+                    }
+
+                    if(sym==rparen)
+                    {
+                        gen(cal, lev - table[i].level, table[i].addr);
+                    }
+                    else
+                    {
+                        printf("Rparen lost!\n");
+                    }
+                    getsym();
+                }
+                else
+                {
+                    printf("Parameter list is wrong!\n");
+                    getsym();
+                }
+
+                if(sym==eql)
+                {
+                    getsym();//理应读入一个标识符
+                    int idtx=position(id);
+                    gen(sto,lev-lev - table[idtx].level,table[idtx].addr);
+                    getsym();
+                }
+                
             }
             else
             {
                 error(15);
+                getsym();
             }
-            
-            getsym();
         }
     }
     // 处理Stmt的第四种推导： if Cond then Stmt
@@ -662,6 +718,7 @@ void statement(unsigned long fsys)
     // 处理Stmt第三种推导，其结构为： begin Stmt {; Stmt} end
     else if(sym==beginsym)
     {
+
         getsym(); // 理应读入Stmt的第一个词法单元
         // 处理Stmt
         statement(fsys|semicolon|endsym);
@@ -740,6 +797,18 @@ void statement(unsigned long fsys)
         }
         getsym();
     }
+    //@4 添加return
+    else if(sym==retsym)
+    {
+        getsym();//理应读入一个ident
+        int idtx=position(id);
+        //printf("lit:id:%s val:%d\n",id,table[idtx].val);
+        gen(lod,0,table[idtx].addr);
+        retpos[retnum]=cx;
+        retnum++;
+        gen(jmp,0,0);
+        getsym();
+    }
 
     test(fsys,0,19);
 }
@@ -796,6 +865,29 @@ void block(unsigned long fsys)
             } while(sym==ident);
         }
 
+        //@4
+        if(paranum0!=0)
+        {
+            unsigned long symsaved=sym;
+            char idsaved[11];
+            strcpy(idsaved, id);
+
+            
+            int temp_paranum = 0;
+            while (temp_paranum != paranum0)
+            {
+                // temp_paranum = temp_paranum - 1;
+                strcpy(id, parameter[temp_paranum].name);
+                temp_paranum = temp_paranum + 1;
+                sym = ident;
+                enter(variable);
+            }
+
+            sym=symsaved;
+            strcpy(id, idsaved);
+        }
+
+
         // 处理可选扩展VarDecl
         if(sym==varsym)
         {
@@ -817,7 +909,9 @@ void block(unsigned long fsys)
                     error(5);
                 }
             } while(sym==ident);
+
         }
+        
 
         // 循环处理过程声明部分，并在该循环体中进行嵌套深度的计算
         //  处理可选扩展ProcDecl
@@ -844,17 +938,81 @@ void block(unsigned long fsys)
             
             //嵌套深度+1，保存当前标识符表索引以及当前数据分配索引。然后分析子代码块
             lev=lev+1; tx1=tx; dx1=dx;
-            block(fsys|semicolon);
+            block(fsys | semicolon | funcsym);
             lev=lev-1; tx=tx1; dx=dx1;
             
             if(sym==semicolon)
             {
                 getsym();
-                test(statbegsys|ident|procsym,fsys,6);
+                test(statbegsys|ident|procsym|funcsym,fsys,6);
             }
             else
             {
                 error(5);
+            }
+        }
+
+        while(sym==funcsym)
+        {
+            getsym();
+            if (sym == ident)
+            {
+                enter(func);
+                getsym();
+            }
+            else
+            {
+                printf("-Following function is not a ident!\n");
+            }
+
+            if (sym == lparen)
+            {
+                getsym();
+
+                while(sym==ident)
+                {
+                    strcpy(parameter[paranum0].name, id);
+                    paranum0 = paranum0 + 1;
+                    
+                    //相关定义
+                    getsym();
+
+                    if(sym==rparen)
+                    {
+                        getsym();
+                        break;
+                    }
+                    else if(sym==comma)
+                    {
+                        getsym();
+                    }
+                    else
+                    {
+                        printf("Comma error:%s\n",id);
+                    }
+                }
+            }
+
+            if (sym == semicolon)
+            {
+                getsym();
+            }
+            else
+            {
+                printf("-Ending a funchead is not a semicolon!\n");
+            }
+
+            lev = lev + 1;tx1 = tx;dx1 = dx;
+            block(fsys | semicolon);
+            lev = lev - 1;tx = tx1;dx = dx1;
+
+            if (sym == semicolon)
+            {
+                getsym();
+            }
+            else
+            {
+                printf("%s-Ending a function is not a semicolon!\n",id);
             }
         }
         
@@ -863,13 +1021,37 @@ void block(unsigned long fsys)
 
     // 找到本Block开头占位的跳转指令，并设置其多用途（跳转目标地址）为当前cx（也就是Stmt部分的第一句汇编指令）
     // 该语句执行后，开头占位的jmp指令将会指向gen(Int,0,dx);所生成的汇编指令
-    code[table[tx0].addr].a=cx;
+    //code[table[tx0].addr].a=cx;
     // 给过程词法单元的地址属性附上地址（注意，初始的大Block没有名字，只有开始语句的地址）
     table[tx0].addr=cx;		// start addr of code 
     cx0=cx; 
     gen(Int,0,dx);// 根据当前的变量dx开辟栈区
+
+    //@4
+    while (paranum0 != 0)
+    {
+        paranum0 = paranum0 - 1;
+        int idtx = position(parameter[paranum0].name);
+        if (idtx != 0)
+        {
+            gen(sto, table[idtx].level, table[idtx].addr);
+        }
+        else
+        {
+            printf("idtx=0\n");
+        }
+    }
+
     // 处理必然存在的Stmt
     statement(fsys|semicolon|endsym);
+    
+    //@4
+    for(int i=0;i<retnum;i++)
+    {
+        code[retpos[i]].a=cx;
+    }
+    retnum=0;
+
     gen(opr,0,0); // return
     test(fsys,0,8);
     listcode(cx0);
@@ -1015,12 +1197,14 @@ int main()
     strcpy(word[4], "else      ");  // 4
     strcpy(word[5], "end       ");  // 5
     strcpy(word[6], "exit      ");  // 6
-    strcpy(word[7], "if        ");  // 7
-    strcpy(word[8], "odd       ");  // 8
-    strcpy(word[9], "procedure ");  // 9
-    strcpy(word[10], "then      "); // 10
-    strcpy(word[11], "var       "); // 11
-    strcpy(word[12], "while     "); // 12
+    strcpy(word[7], "function  ");  // 7
+    strcpy(word[8], "if        ");  // 8
+    strcpy(word[9], "odd       ");  // 9
+    strcpy(word[10], "procedure "); // 10
+    strcpy(word[11], "return    ");  // 11
+    strcpy(word[12], "then      "); // 11
+    strcpy(word[13], "var       "); // 12
+    strcpy(word[14], "while     "); // 13
 
     // 初始化保留字编码数组
     // 实际上，word和wsym的索引相一致，这个索引间接实现了从保留字字符串到保留字编码的映射
@@ -1031,12 +1215,14 @@ int main()
     wsym[4] = elsesym;   // e
     wsym[5] = endsym;    // e
     wsym[6] = exitsym;   // e
-    wsym[7] = ifsym;     // i
-    wsym[8] = oddsym;    // o
-    wsym[9] = procsym;   // p
-    wsym[10] = thensym;  // t
-    wsym[11] = varsym;   // v
-    wsym[12] = whilesym; // w
+    wsym[7] = funcsym;   // f
+    wsym[8] = ifsym;     // i
+    wsym[9] = oddsym;    // o
+    wsym[10] = procsym;  // p
+    wsym[11] = retsym;
+    wsym[12] = thensym;  // t
+    wsym[13] = varsym;   // v
+    wsym[14] = whilesym; // w
 
     //初始化运算符编码数组，并且实际上建立了从运算符字符到运算符编码的映射
     ssym['+']=plus;

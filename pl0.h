@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#define norw 13    // 保留字的数量
+#define norw 15    // 保留字的数量
 #define txmax 100  // 标识符表的长度
 #define nmax 14    // 数字中的最大位数
 #define al 10      // 标识符的最大长度
@@ -45,6 +45,8 @@
 #define procsym 0x20000000 // procedure保留字
 #define elsesym 0x40000000 // else保留字
 #define exitsym 0x101      // exit保留字
+#define funcsym 0x105
+#define retsym 0x106
 
 // 以下的保留字尚未投入使用
 #define arraysym 0x102     // array保留字
@@ -54,7 +56,10 @@
 // 将对象分成常量、变量、过程
 enum object
 {
-    constant, variable, proc
+    constant,
+    variable,
+    proc,
+    func
 };
 
 //     lit, // 将常数置于栈顶
@@ -168,3 +173,12 @@ long s[stacksize]; // 数据存储区，用于解释器执行时的数据操作
 int whilelev;
 int exit_num[whilevmax];
 long exit_pos[whilevmax][3] = {0};
+
+// @4
+struct
+{
+    char name[al + 1];
+} parameter[5];
+int paranum0 = 0;
+long retpos[5]={0};
+int retnum=0;
