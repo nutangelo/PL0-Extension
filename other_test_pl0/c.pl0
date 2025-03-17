@@ -1,0 +1,33 @@
+const a=11,b=24;
+var c,d,e,f,g;
+procedure p1;
+    begin
+		f:=b;
+		if odd b then f:=b-1
+		else f:=b+1
+    end;
+function max(max1,max2);
+    begin
+		if max1>max2 then return max1
+		else return max2;
+		return max1
+    end;
+function norfunc(n1,n2,n3,n4);
+    begin
+		while n1<n2 do
+			begin
+				n1:=n1+n2;
+				while n3>n4 do
+					begin
+						if n3>n4 then exit
+						else n3:=n3+n4
+					end
+			end
+    end;
+begin
+    call p1;
+	c:=5;
+	d:=6;
+	call max(c,d)=e;
+	call norfunc(d,e,f,g)=c
+end.
